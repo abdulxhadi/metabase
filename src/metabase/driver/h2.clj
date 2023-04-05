@@ -3,6 +3,7 @@
    [clojure.math.combinatorics :as math.combo]
    [clojure.string :as str]
    [java-time :as t]
+   [metabase.csv :as csv]
    [metabase.db.jdbc-protocols :as mdb.jdbc-protocols]
    [metabase.db.spec :as mdb.spec]
    [metabase.driver :as driver]
@@ -15,6 +16,7 @@
    [metabase.plugins.classloader :as classloader]
    [metabase.query-processor.error-type :as qp.error-type]
    [metabase.query-processor.store :as qp.store]
+   [metabase.query-processor.writeback :as qp.writeback]
    [metabase.util :as u]
    [metabase.util.honey-sql-2 :as h2x]
    [metabase.util.i18n :refer [deferred-tru tru]]
@@ -22,6 +24,7 @@
    [metabase.util.malli :as mu]
    [metabase.util.ssh :as ssh])
   (:import
+   (java.io File)
    (java.sql Clob ResultSet ResultSetMetaData)
    (java.time OffsetTime)
    (org.h2.command CommandInterface Parser)
@@ -516,3 +519,34 @@
       (do (log/error (tru "SSH tunnel can only be established for H2 connections using the TCP protocol"))
           db-details))
     db-details))
+
+(defn check-for-semicolons [s]
+  (when (re-find #";" s)
+    (throw (ex-info (tru "Error uploading CSV: \";\" in {0}" s) {}))))
+
+(defn- load-from-csv-sql [schema-name table-name column-names file-path]
+  (let [column-str (str/join "," column-names)]
+    (str "INSERT INTO " schema-name "." table-name " (" column-str ") "
+         "SELECT " column-str " FROM CSVREAD('" file-path "')")))
+
+(def csv->database-type
+  {::csv/varchar_255 "VARCHAR"
+   ::csv/text        "VARCHAR"
+   ::csv/int         "INTEGER"
+   ::csv/float       "FLOAT"
+   ::csv/boolean     "BOOLEAN"})
+
+(defmethod driver/load-from-csv :h2
+  [driver db-id schema-name table-name ^File csv-file]
+  (let [col->type    (update-vals (csv/detect-schema csv-file) csv->database-type)
+        column-names (keys col->type)
+        file-path    (.getPath csv-file)]
+    (run! check-for-semicolons (concat [schema-name table-name file-path] column-names))
+    (driver/create-table driver db-id schema-name table-name col->type)
+    (let [sql (load-from-csv-sql schema-name table-name column-names file-path)]
+      (try
+        (qp.writeback/execute-write-sql! db-id sql)
+        (catch Throwable e
+          (driver/drop-table driver db-id schema-name table-name)
+          (throw (ex-info (ex-message e) {}))))
+      nil)))

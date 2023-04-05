@@ -3,16 +3,19 @@
    [clojure.java.jdbc :as jdbc]
    [clojure.string :as str]
    [clojure.test :refer :all]
+   [metabase.csv-test :as csv-test]
    [metabase.db.spec :as mdb.spec]
    [metabase.driver :as driver]
    [metabase.driver.h2 :as h2]
    [metabase.driver.sql.query-processor :as sql.qp]
-   [metabase.models :refer [Database]]
+   [metabase.models :refer [Database Field Table]]
    [metabase.query-processor :as qp]
+   [metabase.sync :as sync]
    [metabase.test :as mt]
    [metabase.util :as u]
    #_{:clj-kondo/ignore [:discouraged-namespace]}
-   [metabase.util.honeysql-extensions :as hx]))
+   [metabase.util.honeysql-extensions :as hx]
+   [toucan2.core :as t2]))
 
 (set! *warn-on-reflection* true)
 
@@ -294,3 +297,46 @@
                     (mt/user-http-request :crowberto
                                           :post 200
                                           (format "action/%s/execute" action-id))))))))))
+
+(deftest load-from-csv-test
+  (testing "Upload a CSV file"
+    (mt/test-driver :h2
+      (mt/with-empty-db
+        (driver/load-from-csv
+         driver/*driver*
+         (mt/id)
+         "public"
+         "upload_test"
+         (csv-test/csv-file-with ["id,empty,string,bool,float" "2,,string,true,1.1" "3,,string,false,1.1"]))
+        (testing "Table and Fields exist after sync"
+          (sync/sync-database! (mt/db))
+          (let [table (t2/select-one Table :schema "public" :name "upload_test" :db_id (mt/id))]
+            (is (some? table))
+            (is (=? {:database_position 0
+                     :database_type     "integer"
+                     :display_name      "ID"
+                     :semantic_type     :type/PK
+                     :base_type         :type/Integer}
+                    (t2/select-one Field :name "id" :table_id (:id table))))
+            (is (=? {:database_position 1
+                     :database_type     "varchar"
+                     :base_type         :type/Text}
+                    (t2/select-one Field :name "empty" :table_id (:id table))))
+            (is (=? {:database_position 2
+                     :database_type     "varchar"
+                     :base_type         :type/Text}
+                    (t2/select-one Field :name "string" :table_id (:id table))))
+            (is (=? {:database_position 3
+                     :database_type     "boolean"
+                     :base_type         :type/Boolean}
+                    (t2/select-one Field :name "bool" :table_id (:id table))))
+            (is (=? {:database_position 4
+                     :database_type     "float"
+                     :base_type         :type/Float}
+                    (t2/select-one Field :name "float" :table_id (:id table))))
+            (testing "Check the data was uploaded into the table"
+              (is (= [[2]] (-> (mt/process-query {:database (mt/id)
+                                                  :type :query
+                                                  :query {:source-table (:id table)
+                                                          :aggregation [[:count]]}})
+                               mt/rows))))))))))
