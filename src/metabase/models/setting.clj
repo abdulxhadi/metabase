@@ -148,9 +148,54 @@
   [_setting]
   [:key])
 
+(def ^:private exported-settings
+  '#{humanization-strategy
+     native-query-autocomplete-match-style
+     site-locale
+     report-timezone-short
+     report-timezone-long
+     application-name
+     enable-xrays
+     admin-email
+     show-homepage-pin-message
+     source-address-header
+     enable-nested-queries
+     custom-geojson-enabled
+     start-of-week
+     custom-geojson
+     available-timezones
+     max-results-bare-rows
+     hide-embed-branding?
+     search-typeahead-enabled
+     enable-sandboxes?
+     application-font
+     available-locales
+     landing-page
+     enable-embedding
+     application-colors
+     application-logo-url
+     application-favicon-url
+     show-homepage-xrays
+     show-metabot
+     enable-whitelabeling?
+     show-homepage-data
+     map-tile-server-url
+     site-name
+     application-font-files
+     loading-message
+     report-timezone
+     show-lighthouse-illustration
+     persisted-models-enabled
+     enable-content-management?
+     subscription-allowed-domains
+     breakout-bins-num
+     available-fonts
+     custom-formatting})
+
 (defmethod serdes/extract-all "Setting" [_model _opts]
   (for [{:keys [key value]} (admin-writable-site-wide-settings
-                             :getter (partial get-value-of-type :string))]
+                             :getter (partial get-value-of-type :string))
+        :when (contains? exported-settings (symbol key))]
     {:serdes/meta [{:model "Setting" :id (name key)}]
      :key key
      :value value}))
