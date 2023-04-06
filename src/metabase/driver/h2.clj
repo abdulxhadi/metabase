@@ -1,9 +1,12 @@
 (ns metabase.driver.h2
   (:require
+   [clojure.data.csv :as csv]
+   [clojure.java.io :as io]
    [clojure.math.combinatorics :as math.combo]
    [clojure.string :as str]
+   [honey.sql :as sql]
    [java-time :as t]
-   [metabase.csv :as csv]
+   [metabase.csv :as upload]
    [metabase.db.jdbc-protocols :as mdb.jdbc-protocols]
    [metabase.db.spec :as mdb.spec]
    [metabase.driver :as driver]
@@ -524,29 +527,54 @@
   (when (re-find #";" s)
     (throw (ex-info (tru "Error uploading CSV: \";\" in {0}" s) {}))))
 
-(defn- load-from-csv-sql [schema-name table-name column-names file-path]
-  (let [column-str (str/join "," column-names)]
-    (str "INSERT INTO " schema-name "." table-name " (" column-str ") "
-         "SELECT " column-str " FROM CSVREAD('" file-path "')")))
+(def ^:private csv->database-type
+  {::upload/varchar_255 "VARCHAR"
+   ::upload/text        "VARCHAR"
+   ::upload/int         "INTEGER"
+   ::upload/float       "DOUBLE PRECISION"
+   ::upload/boolean     "BOOLEAN"})
 
-(def csv->database-type
-  {::csv/varchar_255 "VARCHAR"
-   ::csv/text        "VARCHAR"
-   ::csv/int         "INTEGER"
-   ::csv/float       "FLOAT"
-   ::csv/boolean     "BOOLEAN"})
+(def^:private csv-type->parser
+  {::upload/varchar_255 identity
+   ::upload/text        identity
+   ::upload/int         #(Integer/parseInt %)
+   ::upload/float       #(Float/parseFloat %)
+   ::upload/boolean     read-string})
 
+(defn- parsed-rows
+  "Returns a vector of parsed rows from a `csv-file`.
+   Replaces empty strings with nil."
+  [col->csv-type csv-file]
+  (with-open [reader (io/reader csv-file)]
+    (let [[_header & rows] (csv/read-csv reader)
+          parsers (map csv-type->parser (vals col->csv-type))]
+      (vec (for [row rows]
+             (vec (for [[v f] (map vector row parsers)]
+                    (if (str/blank? v)
+                      nil
+                      (f v)))))))))
+
+(defn- load-from-csv-sql
+  ;; We can't use CSVREAD because it requires an Admin user, which we
+  ;; can't for security reasons.
+  [table-name column-names rows]
+  (sql/format {:insert-into (keyword table-name)
+               :columns (map keyword column-names)
+               :values rows}))
+
+;; TODO: remove schema-name
 (defmethod driver/load-from-csv :h2
   [driver db-id schema-name table-name ^File csv-file]
-  (let [col->type    (update-vals (csv/detect-schema csv-file) csv->database-type)
-        column-names (keys col->type)
-        file-path    (.getPath csv-file)]
-    (run! check-for-semicolons (concat [schema-name table-name file-path] column-names))
-    (driver/create-table driver db-id schema-name table-name col->type)
-    (let [sql (load-from-csv-sql schema-name table-name column-names file-path)]
+  (let [col->csv-type      (upload/detect-schema csv-file)
+        col->database-type (update-vals col->csv-type csv->database-type)
+        column-names       (keys col->csv-type)]
+    (run! check-for-semicolons (concat [table-name] column-names))
+    (driver/create-table driver db-id schema-name table-name col->database-type)
+    (let [rows (parsed-rows col->csv-type csv-file)
+          sql  (load-from-csv-sql table-name column-names rows)]
       (try
         (qp.writeback/execute-write-sql! db-id sql)
         (catch Throwable e
-          (driver/drop-table driver db-id schema-name table-name)
+          (driver/drop-table driver db-id table-name)
           (throw (ex-info (ex-message e) {}))))
       nil)))

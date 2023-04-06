@@ -287,33 +287,33 @@
          (mt/id)
          "public"
          "upload_test"
-         (csv-test/csv-file-with ["id,empty,string,bool,float" "2,,string,true,1.1" "3,,string,false,1.1"]))
+         (csv-test/csv-file-with ["id,empty,string,bool,number" "2,,string,true,1.1" "3,,string,false,1.1"]))
         (testing "Table and Fields exist after sync"
           (sync/sync-database! (mt/db))
-          (let [table (t2/select-one Table :schema "public" :name "upload_test" :db_id (mt/id))]
+          (let [table (t2/select-one Table :schema "PUBLIC" :name "UPLOAD_TEST" :db_id (mt/id))]
             (is (some? table))
             (is (=? {:database_position 0
-                     :database_type     "integer"
+                     :database_type     "INTEGER"
                      :display_name      "ID"
                      :semantic_type     :type/PK
                      :base_type         :type/Integer}
-                    (t2/select-one Field :name "id" :table_id (:id table))))
+                    (t2/select-one Field :name "ID" :table_id (:id table))))
             (is (=? {:database_position 1
-                     :database_type     "varchar"
+                     :database_type     "CHARACTER VARYING"
                      :base_type         :type/Text}
-                    (t2/select-one Field :name "empty" :table_id (:id table))))
+                    (t2/select-one Field :name "EMPTY" :table_id (:id table))))
             (is (=? {:database_position 2
-                     :database_type     "varchar"
+                     :database_type     "CHARACTER VARYING"
                      :base_type         :type/Text}
-                    (t2/select-one Field :name "string" :table_id (:id table))))
+                    (t2/select-one Field :name "STRING" :table_id (:id table))))
             (is (=? {:database_position 3
-                     :database_type     "boolean"
+                     :database_type     "BOOLEAN"
                      :base_type         :type/Boolean}
-                    (t2/select-one Field :name "bool" :table_id (:id table))))
+                    (t2/select-one Field :name "BOOL" :table_id (:id table))))
             (is (=? {:database_position 4
-                     :database_type     "float"
+                     :database_type     "DOUBLE PRECISION"
                      :base_type         :type/Float}
-                    (t2/select-one Field :name "float" :table_id (:id table))))
+                    (t2/select-one Field :name "NUMBER" :table_id (:id table))))
             (testing "Check the data was uploaded into the table"
               (is (= [[2]] (-> (mt/process-query {:database (mt/id)
                                                   :type :query
