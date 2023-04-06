@@ -98,4 +98,5 @@ export interface FieldValues {
 
 export type Field = Omit<ConcreteField, "id"> & {
   id?: FieldId;
+  field_ref?: ["field", FieldId];
 };
