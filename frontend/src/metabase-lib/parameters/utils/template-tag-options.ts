@@ -36,6 +36,7 @@ export function getParameterOptionsForField(field: Field) {
 export function getDefaultParameterWidgetType(tag: TemplateTag, field: Field) {
   const options = getParameterOptionsForField(field);
   const widgetType = tag["widget-type"];
+  const distinctCount = field.fingerprint?.global["distinct-count"];
 
   if (options.length === 0) {
     return undefined;
@@ -44,6 +45,12 @@ export function getDefaultParameterWidgetType(tag: TemplateTag, field: Field) {
     options.some(option => option.type === widgetType)
   ) {
     return widgetType;
+  } else if (
+    distinctCount != null &&
+    distinctCount > 20 &&
+    options.some(option => option.type === "string/contains")
+  ) {
+    return "string/contains";
   } else {
     return options[0].type;
   }
