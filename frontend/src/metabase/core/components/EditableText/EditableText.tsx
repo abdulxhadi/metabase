@@ -12,7 +12,11 @@ import React, {
 
 import { usePrevious } from "react-use";
 
-import { EditableTextArea, EditableTextRoot } from "./EditableText.styled";
+import {
+  EditableTextArea,
+  EditableTextRoot,
+  Markdown,
+} from "./EditableText.styled";
 
 export type EditableTextAttributes = Omit<
   HTMLAttributes<HTMLDivElement>,
@@ -26,6 +30,7 @@ export interface EditableTextProps extends EditableTextAttributes {
   isOptional?: boolean;
   isMultiline?: boolean;
   isDisabled?: boolean;
+  isMarkdownSupported?: boolean;
   onChange?: (value: string) => void;
   onFocus?: () => void;
   onBlur?: () => void;
@@ -40,6 +45,7 @@ const EditableText = forwardRef(function EditableText(
     isOptional = false,
     isMultiline = false,
     isDisabled = false,
+    isMarkdownSupported = false,
     onChange,
     onFocus,
     onBlur,
@@ -50,7 +56,12 @@ const EditableText = forwardRef(function EditableText(
 ) {
   const [inputValue, setInputValue] = useState(initialValue ?? "");
   const [submitValue, setSubmitValue] = useState(initialValue ?? "");
-  const displayValue = inputValue ? inputValue : placeholder;
+  const [escapedInputValue, setEscapedInputValue] = useState(
+    initialValue ?? "",
+  );
+  const [isInFocus, setIsInFocus] = useState(isEditing);
+  const input = useRef<HTMLTextAreaElement>(null);
+  const displayValue = inputValue ? escapedInputValue : placeholder;
   const submitOnBlur = useRef(true);
   const previousInitialValue = usePrevious(initialValue);
 
@@ -60,8 +71,15 @@ const EditableText = forwardRef(function EditableText(
     }
   }, [initialValue, previousInitialValue]);
 
+  useEffect(() => {
+    if (isInFocus) {
+      input.current?.focus();
+    }
+  }, [isInFocus]);
+
   const handleBlur = useCallback(
     e => {
+      setIsInFocus(false);
       if (!isOptional && !inputValue) {
         setInputValue(submitValue);
       } else if (inputValue !== submitValue && submitOnBlur.current) {
@@ -76,10 +94,16 @@ const EditableText = forwardRef(function EditableText(
   const handleChange = useCallback(
     (event: ChangeEvent<HTMLTextAreaElement>) => {
       setInputValue(event.currentTarget.value);
+      setEscapedInputValue(event.currentTarget.value);
       submitOnBlur.current = true;
     },
     [submitOnBlur],
   );
+
+  const handleFocus = () => {
+    setIsInFocus(true);
+    onFocus?.();
+  };
 
   const handleKeyDown = useCallback(
     (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -103,17 +127,25 @@ const EditableText = forwardRef(function EditableText(
       isEditing={isEditing}
       isDisabled={isDisabled}
       data-value={`${displayValue}\u00A0`}
+      onClick={() => {
+        setIsInFocus(true);
+      }}
     >
-      <EditableTextArea
-        value={inputValue}
-        placeholder={placeholder}
-        disabled={isDisabled}
-        data-testid={dataTestId}
-        onFocus={onFocus}
-        onBlur={handleBlur}
-        onChange={handleChange}
-        onKeyDown={handleKeyDown}
-      />
+      {isInFocus || !isMarkdownSupported ? (
+        <EditableTextArea
+          ref={input}
+          value={inputValue}
+          placeholder={placeholder}
+          disabled={isDisabled}
+          data-testid={dataTestId}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
+          onChange={handleChange}
+          onKeyDown={handleKeyDown}
+        />
+      ) : (
+        <Markdown disallowHeading>{escapedInputValue}</Markdown>
+      )}
     </EditableTextRoot>
   );
 });

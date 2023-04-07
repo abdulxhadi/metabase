@@ -1,6 +1,7 @@
 import styled from "@emotion/styled";
 import { color, lighten } from "metabase/lib/colors";
 import Icon from "metabase/components/Icon";
+import MarkdownBase from "metabase/core/components/Markdown";
 
 export const LegendCaptionRoot = styled.div`
   display: flex;
@@ -41,3 +42,10 @@ export const LegendRightContent = styled.div`
 LegendDescriptionIcon.defaultProps = {
   name: "info",
 };
+
+export const Markdown = styled(MarkdownBase)`
+  a {
+    color: ${color("white")};
+    text-decoration: underline;
+  }
+`;

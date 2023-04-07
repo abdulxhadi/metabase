@@ -1,5 +1,6 @@
 import styled from "@emotion/styled";
 
+import MarkdownBase from "metabase/core/components/Markdown";
 import { color } from "metabase/lib/colors";
 
 const TITLE_MAX_LINES = 2;
@@ -64,4 +65,11 @@ export const ScalarDescriptionContainer = styled.div`
 
 export const ScalarDescriptionPlaceholder = styled.div`
   width: 1.5rem;
+`;
+
+export const Markdown = styled(MarkdownBase)`
+  a {
+    color: ${color("white")};
+    text-decoration: underline;
+  }
 `;

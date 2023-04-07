@@ -66,6 +66,7 @@ const CollectionCaption = ({
           isDisabled={!isEditable}
           isOptional
           isMultiline
+          isMarkdownSupported
           onChange={handleChangeDescription}
         />
       )}

@@ -10,7 +10,6 @@ import Ellipsified from "metabase/core/components/Ellipsified";
 import EntityItem from "metabase/components/EntityItem";
 import DateTime from "metabase/components/DateTime";
 import Tooltip from "metabase/core/components/Tooltip";
-import Markdown from "metabase/core/components/Markdown";
 import ActionMenu from "metabase/collections/components/ActionMenu";
 
 import { color } from "metabase/lib/colors";
@@ -25,6 +24,7 @@ import {
   DescriptionIcon,
   ModelDetailLink,
   RowActionsContainer,
+  Markdown,
 } from "./BaseItemsTable.styled";
 
 BaseTableItem.propTypes = {
@@ -128,7 +128,9 @@ export function BaseTableItem({
               <DescriptionIcon
                 name="info"
                 size={16}
-                tooltip={<Markdown>{item.description}</Markdown>}
+                tooltip={
+                  <Markdown disallowHeading>{item.description}</Markdown>
+                }
               />
             )}
           </ItemLink>

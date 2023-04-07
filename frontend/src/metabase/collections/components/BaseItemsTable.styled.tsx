@@ -8,6 +8,7 @@ import {
 
 import EntityItem from "metabase/components/EntityItem";
 import Icon from "metabase/components/Icon";
+import MarkdownBase from "metabase/core/components/Markdown";
 import Link from "metabase/core/components/Link";
 import BaseModelDetailLink from "metabase/models/components/ModelDetailLink";
 import IconButtonWrapper from "metabase/components/IconButtonWrapper";
@@ -193,5 +194,12 @@ export const TBody = styled.tbody`
     ${ModelDetailLink} {
       visibility: visible;
     }
+  }
+`;
+
+export const Markdown = styled(MarkdownBase)`
+  a {
+    color: ${color("white")};
+    text-decoration: underline;
   }
 `;
